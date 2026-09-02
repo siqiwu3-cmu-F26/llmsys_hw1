@@ -420,7 +420,27 @@ __global__ void reduceKernel(
   // 4. Iterate over the reduce_dim dimension of the input array to compute the reduced value
   // 5. Write the reduced value to out memory
 
-  assert(false && "Not Implemented");
+  const int ordinal = blockIdx.x * blockDim.x + threadIdx.x;
+  if (ordinal >= out_size)
+  {
+    return;
+  }
+
+  to_index(ordinal, out_shape, out_index, shape_size);
+
+  const int out_pos = index_to_position(
+      out_index, out_strides, shape_size);
+  const int a_start_pos = index_to_position(
+      out_index, a_strides, shape_size);
+
+  float result = reduce_value;
+  for (int i = 0; i < a_shape[reduce_dim]; ++i)
+  {
+    const int a_pos = a_start_pos + i * a_strides[reduce_dim];
+    result = fn(fn_id, result, a_storage[a_pos]);
+  }
+
+  out[out_pos] = result;
   /// END HW1_3
 }
 
