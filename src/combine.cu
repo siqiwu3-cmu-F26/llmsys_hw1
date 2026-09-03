@@ -500,7 +500,59 @@ __global__ void MatrixMultiplyKernel(
   // 6. Synchronize to make sure all threads are done computing the output tile for (row, col)
   // 7. Write the output to global memory
 
-  assert(false && "Not Implemented");
+  const int row = blockIdx.x * TILE + threadIdx.x;
+  const int col = blockIdx.y * TILE + threadIdx.y;
+  const int inner_size = a_shape[2];
+
+  float value = 0.0f;
+
+  for (int tile = 0; tile < (inner_size + TILE - 1) / TILE; ++tile)
+  {
+    const int a_col = tile * TILE + threadIdx.y;
+    const int b_row = tile * TILE + threadIdx.x;
+
+    if (row < a_shape[1] && a_col < inner_size)
+    {
+      const int a_pos = batch * a_batch_stride
+                        + row * a_strides[1]
+                        + a_col * a_strides[2];
+      a_shared[threadIdx.x][threadIdx.y] = a_storage[a_pos];
+    }
+    else
+    {
+      a_shared[threadIdx.x][threadIdx.y] = 0.0f;
+    }
+
+    if (b_row < inner_size && col < b_shape[2])
+    {
+      const int b_pos = batch * b_batch_stride
+                        + b_row * b_strides[1]
+                        + col * b_strides[2];
+      b_shared[threadIdx.x][threadIdx.y] = b_storage[b_pos];
+    }
+    else
+    {
+      b_shared[threadIdx.x][threadIdx.y] = 0.0f;
+    }
+
+    __syncthreads();
+
+    for (int k = 0; k < TILE; ++k)
+    {
+      value += a_shared[threadIdx.x][k]
+               * b_shared[k][threadIdx.y];
+    }
+
+    __syncthreads();
+  }
+
+  if (row < out_shape[1] && col < out_shape[2])
+  {
+    const int out_pos = batch * out_strides[0]
+                        + row * out_strides[1]
+                        + col * out_strides[2];
+    out[out_pos] = value;
+  }
   /// END HW1_4
 }
 
